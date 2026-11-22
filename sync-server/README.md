@@ -12,6 +12,19 @@ server only ever sees scrambled data, a vault id and a hashed access token.
 5. Copy the Worker URL (e.g. `https://threadmark-sync.<you>.workers.dev`) and build the app with
    `VITE_SYNC_URL=<that URL> npm run build`.
 
+## Sign-ups, feedback and licences
+The same Worker also handles:
+- `POST /v1/subscribe`: email sign-ups from the website (stored in KV under `sub:`).
+- `POST /v1/feedback`: beta-reader feedback (stored under `fb:`).
+- `POST /v1/license/verify`: checks a licence key with Gumroad or Lemon Squeezy.
+- `GET /v1/admin/export?type=subscribers|feedback`: downloads a CSV. Needs the `ADMIN_TOKEN` secret.
+
+Settings (Worker → Settings → Variables and Secrets):
+- `ADMIN_TOKEN` (secret): a long random password for exports.
+- `LICENSE_PROVIDER`: `gumroad` or `lemonsqueezy`.
+- `GUMROAD_PRODUCT_ID` or `LEMON_PRODUCT_ID`: your product's ID.
+- `OWNER_KEYS` (secret): comma-separated keys that always unlock (for you).
+
 ## Free plan limits
 Cloudflare's free KV allowance is 1,000 writes a day across all users. The app sends at most
 one write a minute per device while someone is editing, so this covers personal use and a

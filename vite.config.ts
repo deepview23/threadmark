@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
-  base: "/threadmark/",
+  base: process.env.APP_BASE || "/threadmark/",
   plugins: [
     react(),
     VitePWA({

@@ -4,6 +4,7 @@ import MiniMap from "./MiniMap";
 import { ConfirmButton, downloadText, slug } from "./ui";
 import { RSTAT } from "../constants";
 import { demoAtlas } from "../demo";
+import { canAddBook } from "../license";
 import { posText } from "../model";
 import type { Atlas } from "../types";
 
@@ -36,7 +37,7 @@ export default function Library() {
     <section className="lib">
       <div className="lib-head">
         <div><h1>Your story atlases</h1><p>Each atlas starts blank. You add the people you meet and what happens, at your own pace, so nothing is ever spoiled.</p></div>
-        <div className="row"><button className="btn primary" onClick={() => s.openModal({ type: "newAtlas" })}>New atlas</button><button className="btn" onClick={() => s.openModal({ type: "import" })}>Import</button></div>
+        <div className="row"><button className="btn primary" onClick={() => { if (canAddBook()) s.openModal({ type: "newAtlas" }); }}>New atlas</button><button className="btn" onClick={() => s.openModal({ type: "import" })}>Import</button></div>
       </div>
       <div className="lib-tools">
         <input type="search" placeholder="Search titles, characters, places…" aria-label="Search all atlases" value={libQ} onChange={(e) => s.setUi({ libQ: e.target.value })} />
@@ -66,7 +67,7 @@ function AtlasCard({ a, match }: { a: Atlas; match: string }) {
         <div className="hint">Opened {opened}</div>
       </div>
       <div className="aact" onClick={(e) => e.stopPropagation()}>
-        <button className="btn ghost sm" onClick={() => s.duplicateAtlas(a.id)}>Duplicate</button>
+        <button className="btn ghost sm" onClick={() => { if (canAddBook()) s.duplicateAtlas(a.id); }}>Duplicate</button>
         <button className="btn ghost sm" onClick={() => { downloadText(slug(a.title) + ".threadmark.json", JSON.stringify(a, null, 2)); s.toast("Exported " + a.title); }}>Export</button>
         <button className="btn ghost sm" onClick={() => s.updateAtlasById(a.id, (d) => { d.archived = !d.archived; })}>{a.archived ? "Unarchive" : "Archive"}</button>
         <span className="spacer" />
@@ -90,7 +91,7 @@ function Welcome() {
           <li>Draw how they connect, log what happens, and test your theories.</li>
         </ol>
         <div className="row">
-          <button className="btn primary" onClick={() => s.openModal({ type: "newAtlas" })}>Start a blank atlas</button>
+          <button className="btn primary" onClick={() => { if (canAddBook()) s.openModal({ type: "newAtlas" }); }}>Start a blank atlas</button>
           <button className="btn" onClick={() => { s.addExisting(demoAtlas()); s.toast("Demo atlas added. Delete it whenever you like."); }}>Explore a demo first</button>
           <button className="btn ghost" onClick={() => s.openModal({ type: "import" })}>Import</button>
         </div>

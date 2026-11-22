@@ -7,6 +7,7 @@ import { demoAtlas } from "../demo";
 import { InstallTip } from "./Library";
 import type { Atlas } from "../types";
 import { SYNC_URL, currentCode, joinSync, startNewSync, syncNow, turnOffSync } from "../sync";
+import { BUY_URL, FREE_BOOKS, PAYWALL, SITE_URL, activate, canAddBook, currentLicence, licensed } from "../license";
 
 export default function Modals() {
   const m = useStore((s) => s.modal);
@@ -20,6 +21,7 @@ export default function Modals() {
     case "settings": return <SettingsModal onClose={close} />;
     case "shortcuts": return <ShortcutsModal onClose={close} />;
     case "sync": return <SyncModal onClose={close} />;
+    case "unlock": return <UnlockModal onClose={close} />;
     case "unlinkPlaces": return <UnlinkModal onClose={close} {...m.props} />;
     default: return null;
   }
@@ -32,6 +34,7 @@ function AtlasForm({ onClose, edit }: { onClose: () => void; edit?: boolean }) {
   const [f, setF] = useState({ title: src.title || "", creator: src.creator || "", type: src.type || "Book", unit: src.unit || "Page", status: src.status || "Reading", cover: src.cover || PALETTE[0] });
   const save = () => {
     if (edit && a) { s.mutate((d) => { Object.assign(d, { ...f, title: f.title.trim() || d.title }); }); onClose(); return; }
+    if (!canAddBook()) return;
     const n = s.createAtlas({ ...f, title: f.title.trim() || "Untitled story" });
     onClose(); s.openAtlas(n.id); s.setView("canvas");
   };
@@ -65,6 +68,8 @@ function ImportModal({ onClose }: { onClose: () => void }) {
     const list = Array.isArray(o) ? o : Array.isArray(o?.atlases) ? o.atlases : [o];
     const valid = list.filter((x: any) => x && typeof x === "object" && Array.isArray(x.characters));
     if (!valid.length) return s.toast("That doesn't look like a Threadmark atlas.");
+    const personal = valid.filter((x: any) => !x.demo && !(typeof x.sourceUrl === "string" && x.sourceUrl.startsWith("/classics/")));
+    if (personal.length && !canAddBook()) return;
     valid.forEach((x: any, i: number) => s.addExisting(x, i === valid.length - 1 && valid.length === 1));
     onClose(); s.toast(valid.length === 1 ? `Imported “${valid[0].title}”` : `Imported ${valid.length} atlases`);
   };
@@ -117,6 +122,16 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="btn ghost" onClick={() => { s.addExisting(demoAtlas()); onClose(); s.toast("Demo atlas added"); }}>Add the demo atlas</button>
         </div>
       </div>
+      {PAYWALL && <div className="settings-sec">
+        <h3>Your licence</h3>
+        <p className="hint" style={{ marginTop: -4 }}>{licensed() ? "Threadmark is unlocked on this device. Thank you for supporting it." : `Your first ${FREE_BOOKS === 1 ? "book is" : FREE_BOOKS + " books are"} free. Demo books and free classics don't count.`}</p>
+        {!licensed() && <div className="row"><button className="btn" onClick={() => { onClose(); s.openModal({ type: "unlock" }); }}>Unlock Threadmark</button></div>}
+      </div>}
+      {SITE_URL && <div className="settings-sec">
+        <h3>Help shape Threadmark</h3>
+        <p className="hint" style={{ marginTop: -4 }}>Tell us what works and what doesn't. Short notes are perfect.</p>
+        <div className="row"><a className="btn" href={SITE_URL + "/#beta"} target="_blank" rel="noopener">Share feedback</a><a className="btn ghost" href={SITE_URL + "/classics/"} target="_blank" rel="noopener">Free classics</a></div>
+      </div>}
       {SYNC_URL && <div className="settings-sec">
         <h3>Sync between your devices</h3>
         <p className="hint" style={{ marginTop: -4 }}>{s.sync.state === "off" ? "Keep your Mac, iPhone and iPad in step. Your library is encrypted on this device before it leaves, so only your devices can read it." : "Sync is on for this device."}</p>
@@ -135,7 +150,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         <InstallTip />
         <p className="hint">Installed, Threadmark opens in its own window, works without internet, and updates itself when a new version is available.</p>
       </div>
-      <div className="settings-sec"><h3>About</h3><p className="hint">Threadmark 1.1 · Read the story. Map the threads. Press <kbd>?</kbd> inside an atlas for keyboard shortcuts.</p></div>
+      <div className="settings-sec"><h3>About</h3><p className="hint">Threadmark 1.2 · Read the story. Map the threads. Press <kbd>?</kbd> inside an atlas for keyboard shortcuts.</p></div>
     </ModalShell>
   );
 }
@@ -222,6 +237,28 @@ function SyncModal({ onClose }: { onClose: () => void }) {
       <div className="row" style={{ marginTop: 12, flexWrap: "wrap" }}>
         <button className="btn primary" disabled={busy} onClick={async () => { setBusy(true); setErr(""); try { await startNewSync(); setShown(true); } catch (e: any) { setErr(e?.message || "Couldn't start sync"); } setBusy(false); }}>{busy ? "Starting…" : "Start syncing (first device)"}</button>
         <button className="btn" onClick={() => setMode("join")}>I already have a sync code</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function UnlockModal({ onClose }: { onClose: () => void }) {
+  const s = useStore();
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  if (licensed()) return <ModalShell title="Threadmark is unlocked" onClose={onClose}><p style={{ marginTop: 0 }}>Unlimited books are on for this device{currentLicence()?.key ? "" : ""}. Happy reading.</p></ModalShell>;
+  return (
+    <ModalShell title="Unlock unlimited books" onClose={onClose}>
+      <p style={{ marginTop: 0 }}>Your first book is free, and you've used it. Unlock Threadmark to map every story you read, on all your devices.</p>
+      <p className="hint">Demo books and the free classics never count towards your free book.</p>
+      {BUY_URL && <div className="row" style={{ marginBottom: 12 }}><a className="btn primary" href={BUY_URL} target="_blank" rel="noopener">Buy Threadmark</a></div>}
+      <div className="f"><label htmlFor="lic-key">Already bought it? Enter your licence key</label>
+        <input id="lic-key" type="text" autoComplete="off" spellCheck={false} placeholder="From your purchase receipt" value={key} onChange={(e) => { setKey(e.target.value); setErr(""); }} /></div>
+      {err && <p className="hint" style={{ color: "#c2410c" }} role="alert">{err}</p>}
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <button className="btn" onClick={onClose}>Not now</button>
+        <button className="btn primary" disabled={busy || !key.trim()} onClick={async () => { setBusy(true); const r = await activate(key); setBusy(false); if (r.ok) { s.toast("Unlocked. Thank you!"); onClose(); } else setErr(r.msg || "That didn't work"); }}>{busy ? "Checking…" : "Unlock"}</button>
       </div>
     </ModalShell>
   );
