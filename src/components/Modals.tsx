@@ -135,7 +135,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         <InstallTip />
         <p className="hint">Installed, Threadmark opens in its own window, works without internet, and updates itself when a new version is available.</p>
       </div>
-      <div className="settings-sec"><h3>About</h3><p className="hint">Threadmark 1.0 · Read the story. Map the threads. Press <kbd>?</kbd> inside an atlas for keyboard shortcuts.</p></div>
+      <div className="settings-sec"><h3>About</h3><p className="hint">Threadmark 1.1 · Read the story. Map the threads. Press <kbd>?</kbd> inside an atlas for keyboard shortcuts.</p></div>
     </ModalShell>
   );
 }
