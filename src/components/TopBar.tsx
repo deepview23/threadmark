@@ -26,6 +26,7 @@ export default function TopBar() {
           <div className="spacer" />
         </>
       )}
+      <SyncBadge />
       <button className="btn icon ghost" onClick={() => s.openModal({ type: "settings" })} title="Settings" aria-label="Settings"><Icon name="settings" /></button>
     </header>
   );
@@ -77,4 +78,19 @@ function Search() {
       )}
     </div>
   );
+}
+
+function SyncBadge() {
+  const sync = useStore((s) => s.sync);
+  const open = () => useStore.getState().openModal({ type: "sync" });
+  if (sync.state === "off") return null;
+  const map = {
+    syncing: ["sync", "Syncing…", "spin"],
+    synced: ["cloudCheck", "Synced", ""],
+    pending: ["cloud", "Changes waiting to sync", ""],
+    offline: ["cloudOff", "Offline: changes will sync later", "warn"],
+    error: ["cloudOff", "Sync problem: tap for details", "bad"]
+  } as const;
+  const [icon, label, cls] = map[sync.state];
+  return <button className={"btn icon ghost sync-badge " + cls} onClick={open} title={label} aria-label={label}><Icon name={icon} /></button>;
 }

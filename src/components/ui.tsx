@@ -7,6 +7,10 @@ import { PALETTE } from "../constants";
 /* ---------- icons (inline, so they work offline) ---------- */
 const P: Record<string, ReactNode> = {
   back: <path d="M15 18l-6-6 6-6" />,
+  cloud: <path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H7z" />,
+  cloudCheck: <><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4 4 0 0 1-.5 9.5H7z" /><path d="M9.5 13.2l1.8 1.8 3.4-3.6" /></>,
+  cloudOff: <><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 9 8.2M12.6 6.1A6 6 0 0 1 18 8.5a4 4 0 0 1 1.9 7.4" /><path d="M3 3l18 18" /></>,
+  sync: <><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" /><path d="M4 4v4h4" /><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" /><path d="M20 20v-4h-4" /></>,
   undo: <><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></>,
   redo: <><path d="M15 14l5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></>,
   search: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></>,

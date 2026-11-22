@@ -149,6 +149,10 @@ export interface Atlas {
   createdAt: number;
   updatedAt: number;
   openedAt: number;
+  /** Sync: deleted item ids and when they were deleted. */
+  tomb?: Record<string, number>;
+  /** Sync: when book-level details last changed. */
+  metaAt?: number;
 }
 
 export type Kind = "char" | "rel" | "event" | "place" | "faction" | "note";

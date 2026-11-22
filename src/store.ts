@@ -3,6 +3,13 @@ import type { Atlas, Sel, View, Kind } from "./types";
 import { newAtlas, newChar, newRel, newEvent, newPlace, newFaction, newNote, normAtlas, uid, now, visChars, listFor } from "./model";
 import * as db from "./storage";
 import { PALETTE } from "./constants";
+import { stamp, type Tombs } from "./syncCore";
+
+export type SyncState = "off" | "syncing" | "synced" | "pending" | "offline" | "error";
+let changeListener: (() => void) | null = null;
+/** The sync engine registers here to hear about local edits. */
+export function onLocalChange(fn: () => void) { changeListener = fn; }
+const changed = (a: Atlas) => { if (!a.demo) changeListener?.(); };
 
 export type Theme = "system" | "light" | "dark" | "sepia";
 export interface Modal { type: string; props?: any }
@@ -37,6 +44,8 @@ interface State {
   theme: Theme;
   persisted: boolean;
   ui: UI;
+  atlasTomb: Tombs;
+  sync: { state: SyncState; at: number; msg: string };
   canvasCenter: (() => { x: number; y: number }) | null;
   placesCenter: (() => { x: number; y: number }) | null;
 
@@ -96,6 +105,8 @@ export const useStore = create<State>((set, get) => ({
   modal: null,
   theme: "system",
   persisted: false,
+  atlasTomb: {},
+  sync: { state: "off", at: 0, msg: "" },
   canvasCenter: null,
   placesCenter: null,
   ui: {
@@ -105,10 +116,10 @@ export const useStore = create<State>((set, get) => ({
   },
 
   init: async () => {
-    const [atlases, theme, labels, clusters, minimap] = await Promise.all([
-      db.loadAll(), db.getSetting<Theme>("theme", "system"), db.getSetting("showLabels", true), db.getSetting("showClusters", true), db.getSetting("showMinimap", true)
+    const [atlases, theme, labels, clusters, minimap, atlasTomb] = await Promise.all([
+      db.loadAll(), db.getSetting<Theme>("theme", "system"), db.getSetting("showLabels", true), db.getSetting("showClusters", true), db.getSetting("showMinimap", true), db.getSetting<Tombs>("atlasTomb", {})
     ]);
-    set({ atlases, theme, loaded: true, ui: { ...get().ui, showLabels: labels, showClusters: clusters, showMinimap: minimap } });
+    set({ atlases, theme, atlasTomb, loaded: true, ui: { ...get().ui, showLabels: labels, showClusters: clusters, showMinimap: minimap } });
     const persisted = await db.requestPersistence();
     set({ persisted });
   },
@@ -120,37 +131,46 @@ export const useStore = create<State>((set, get) => ({
   goHome: () => set({ curId: null, sel: null, past: [], future: [] }),
   createAtlas: (p) => {
     const a = newAtlas({ cover: PALETTE[get().atlases.length % PALETTE.length], ...p });
+    stamp(null, a);
     set((s) => ({ atlases: [...s.atlases, a] }));
-    persist(a);
+    persist(a); changed(a);
     return a;
   },
   addExisting: (raw, open = true) => {
     const a = normAtlas(raw);
     if (get().atlases.some((x) => x.id === a.id)) a.id = uid("atlas");
     a.updatedAt = now();
+    stamp(null, a);
     set((s) => ({ atlases: [...s.atlases, a] }));
-    persist(a);
+    persist(a); changed(a);
     if (open) get().openAtlas(a.id);
   },
   removeAtlas: (id) => {
-    set((s) => ({ atlases: s.atlases.filter((a) => a.id !== id), curId: s.curId === id ? null : s.curId, sel: s.curId === id ? null : s.sel }));
+    const gone = get().atlases.find((a) => a.id === id);
+    const atlasTomb = gone && !gone.demo ? { ...get().atlasTomb, [id]: now() } : get().atlasTomb;
+    set((s) => ({ atlasTomb, atlases: s.atlases.filter((a) => a.id !== id), curId: s.curId === id ? null : s.curId, sel: s.curId === id ? null : s.sel }));
     db.deleteAtlas(id);
+    if (gone && !gone.demo) { db.setSetting("atlasTomb", atlasTomb); changed(gone); }
   },
   duplicateAtlas: (id) => {
     const src = get().atlases.find((a) => a.id === id); if (!src) return;
     const copy = normAtlas(JSON.parse(JSON.stringify(src)));
     copy.id = uid("atlas"); copy.title = src.title + " (copy)"; copy.demo = false; copy.createdAt = copy.updatedAt = copy.openedAt = now();
+    delete (copy as any).tomb; stamp(null, copy);
     set((s) => ({ atlases: [...s.atlases, copy] }));
-    persist(copy);
+    persist(copy); changed(copy);
     get().toast("Duplicated “" + src.title + "”");
   },
   updateAtlasById: (id, fn) => {
     const s = get(); const i = s.atlases.findIndex((a) => a.id === id); if (i < 0) return;
     const draft: Atlas = structuredClone(s.atlases[i]);
-    fn(draft); draft.updatedAt = now();
+    fn(draft);
+    const did = stamp(s.atlases[i], draft);
+    if (did) draft.updatedAt = now();
     const list = s.atlases.slice(); list[i] = draft;
     set({ atlases: list });
     persist(draft);
+    if (did) changed(draft);
   },
   mutate: (fn, opts) => {
     const s = get(); const a = s.atlas(); if (!a) return;
@@ -163,9 +183,9 @@ export const useStore = create<State>((set, get) => ({
     if (!s.past.length) return s.toast("Nothing to undo");
     const prev = normAtlas(JSON.parse(s.past[s.past.length - 1]));
     const list = s.atlases.map((x) => (x.id === a.id ? prev : x));
-    prev.updatedAt = now();
+    prev.updatedAt = now(); stamp(a, prev);
     set({ atlases: list, past: s.past.slice(0, -1), future: [...s.future, JSON.stringify(a)] });
-    persist(prev);
+    persist(prev); changed(prev);
     if (s.sel && !listFor(prev, s.sel.kind).some((x: any) => x.id === s.sel!.id)) set({ sel: null });
     s.toast("Undone");
   },
@@ -173,9 +193,9 @@ export const useStore = create<State>((set, get) => ({
     const s = get(); const a = s.atlas(); if (!a) return;
     if (!s.future.length) return s.toast("Nothing to redo");
     const next = normAtlas(JSON.parse(s.future[s.future.length - 1]));
-    next.updatedAt = now();
+    next.updatedAt = now(); stamp(a, next);
     set({ atlases: s.atlases.map((x) => (x.id === a.id ? next : x)), future: s.future.slice(0, -1), past: [...s.past, JSON.stringify(a)] });
-    persist(next);
+    persist(next); changed(next);
     if (s.sel && !listFor(next, s.sel.kind).some((x: any) => x.id === s.sel!.id)) set({ sel: null });
     s.toast("Redone");
   },

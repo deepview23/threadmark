@@ -335,3 +335,14 @@ details.sect > summary::-webkit-details-marker { display: none; }
 }
 @media (min-width: 761px) { .show-phone { display: none !important; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---------- sync ---------- */
+.sync-badge.spin svg { animation: tm-spin 1.1s linear infinite; }
+.sync-badge.warn { color: var(--muted); }
+.sync-badge.bad { color: #c2410c; }
+@keyframes tm-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sync-badge.spin svg { animation: none; } }
+.sync-code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 1.25rem; letter-spacing: .08em; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 10px; background: var(--soft); text-align: center; user-select: all; word-break: break-all; }
+.sync-status { display: flex; align-items: center; gap: 8px; }
+.sync-steps { margin: 0; padding-left: 1.2em; }
+.sync-steps li { margin: 4px 0; }

@@ -6,6 +6,7 @@ import TopBar from "./components/TopBar";
 import Library from "./components/Library";
 import AtlasShell from "./components/AtlasShell";
 import Modals from "./components/Modals";
+import { initSync } from "./sync";
 
 export default function App() {
   const loaded = useStore((s) => s.loaded);
@@ -13,7 +14,7 @@ export default function App() {
   const theme = useStore((s) => s.theme);
   const [needRefresh, setNeedRefresh] = useState<null | (() => void)>(null);
 
-  useEffect(() => { useStore.getState().init(); }, []);
+  useEffect(() => { useStore.getState().init().then(initSync); }, []);
   useEffect(() => {
     const r = document.documentElement;
     if (theme === "system") delete r.dataset.theme; else r.dataset.theme = theme;

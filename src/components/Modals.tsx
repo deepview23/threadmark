@@ -6,6 +6,7 @@ import { listBackups, readBackup } from "../storage";
 import { demoAtlas } from "../demo";
 import { InstallTip } from "./Library";
 import type { Atlas } from "../types";
+import { SYNC_URL, currentCode, joinSync, startNewSync, syncNow, turnOffSync } from "../sync";
 
 export default function Modals() {
   const m = useStore((s) => s.modal);
@@ -18,6 +19,7 @@ export default function Modals() {
     case "export": return <ExportModal onClose={close} />;
     case "settings": return <SettingsModal onClose={close} />;
     case "shortcuts": return <ShortcutsModal onClose={close} />;
+    case "sync": return <SyncModal onClose={close} />;
     case "unlinkPlaces": return <UnlinkModal onClose={close} {...m.props} />;
     default: return null;
   }
@@ -107,7 +109,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
       </div>
       <div className="settings-sec">
         <h3>Your data</h3>
-        <p style={{ margin: 0 }}>Everything is stored privately on this device and works offline. Nothing is uploaded anywhere.</p>
+        <p style={{ margin: 0 }}>{s.sync.state === "off" ? "Everything is stored privately on this device and works offline. Nothing is uploaded anywhere." : "Everything is stored on this device and works offline. Sync keeps an encrypted copy so your other devices stay up to date."}</p>
         <p className="hint">{s.persisted ? "✓ Your browser has agreed to keep this data safe from automatic clean-up." : "Tip: install Threadmark to your Home Screen or Dock so your device keeps its data permanently."}</p>
         <div className="row">
           <button className="btn" onClick={() => { downloadText("threadmark-library-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify({ app: "Threadmark", version: 1, atlases: s.atlases }, null, 2)); s.toast("Library backup downloaded"); }}>Download a full backup</button>
@@ -115,6 +117,11 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="btn ghost" onClick={() => { s.addExisting(demoAtlas()); onClose(); s.toast("Demo atlas added"); }}>Add the demo atlas</button>
         </div>
       </div>
+      {SYNC_URL && <div className="settings-sec">
+        <h3>Sync between your devices</h3>
+        <p className="hint" style={{ marginTop: -4 }}>{s.sync.state === "off" ? "Keep your Mac, iPhone and iPad in step. Your library is encrypted on this device before it leaves, so only your devices can read it." : "Sync is on for this device."}</p>
+        <div className="row"><button className="btn" onClick={() => { onClose(); s.openModal({ type: "sync" }); }}>{s.sync.state === "off" ? "Set up sync" : "Sync settings"}</button></div>
+      </div>}
       <div className="settings-sec">
         <h3>Automatic daily snapshots</h3>
         <p className="hint" style={{ marginTop: -4 }}>Threadmark keeps a snapshot of each atlas for each of the last 7 days you used it. Restoring adds the snapshot as a copy, so nothing is overwritten.</p>
@@ -148,6 +155,73 @@ function UnlinkModal({ onClose, x, y }: { onClose: () => void; x: string; y: str
       <div className="row" style={{ justifyContent: "flex-end" }}>
         <button className="btn" onClick={onClose}>Keep</button>
         <button className="btn danger" onClick={() => { s.mutate((d) => { d.places.forEach((p) => { if (p.id === x) p.links = p.links.filter((l) => l !== y); if (p.id === y) p.links = p.links.filter((l) => l !== x); }); }); onClose(); }}>Remove connection</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function SyncModal({ onClose }: { onClose: () => void }) {
+  const s = useStore();
+  const [mode, setMode] = useState<"menu" | "join">("menu");
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [shown, setShown] = useState(false);
+  const code = currentCode();
+
+  if (!SYNC_URL) return <ModalShell title="Sync" onClose={onClose}><p>Sync isn't available in this version of Threadmark.</p></ModalShell>;
+
+  if (code) {
+    const when = s.sync.at ? new Date(s.sync.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+    const label = { off: "Off", syncing: "Syncing…", synced: "Up to date" + (when ? " · last synced " + when : ""), pending: "Changes waiting to sync (within a minute)", offline: s.sync.msg || "Offline", error: s.sync.msg || "Sync problem" }[s.sync.state];
+    return (
+      <ModalShell title="Sync between your devices" onClose={onClose}>
+        <p className="sync-status"><b>Status:</b> <span>{label}</span></p>
+        <h3 style={{ margin: "8px 0 4px" }}>Your sync code</h3>
+        <p className="hint" style={{ marginTop: 0 }}>Enter this code on your other devices to connect them. It is the only key to your synced library: save it in your password manager. Anyone with it can read your library, and it can't be recovered if lost.</p>
+        <div className="sync-code" aria-label="Sync code">{shown ? code : code.replace(/[A-Z0-9]/g, "•")}</div>
+        <div className="row" style={{ marginTop: 8 }}>
+          <button className="btn" onClick={() => setShown(!shown)}>{shown ? "Hide" : "Show"}</button>
+          <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(code); s.toast("Sync code copied"); } catch { setShown(true); s.toast("Select the code to copy it"); } }}>Copy</button>
+          <button className="btn primary" onClick={() => syncNow({ force: true })} disabled={s.sync.state === "syncing"}>Sync now</button>
+        </div>
+        <div className="settings-sec" style={{ marginTop: 14 }}>
+          <h3>Stop syncing</h3>
+          <p className="hint" style={{ marginTop: -4 }}>Your books stay on this device. Your other devices keep syncing with each other.</p>
+          <ConfirmButton className="btn sm" armedText="Click again to turn off sync" onConfirm={async () => { await turnOffSync(); s.toast("Sync turned off on this device"); onClose(); }}>Turn off sync on this device</ConfirmButton>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  if (mode === "join") {
+    return (
+      <ModalShell title="Connect this device" onClose={onClose}>
+        <p style={{ marginTop: 0 }}>On a device that already syncs, open <b>Settings → Sync settings</b> and copy the sync code. Enter it here.</p>
+        <div className="f"><label htmlFor="sync-in">Sync code</label>
+          <input id="sync-in" type="text" autoFocus autoCapitalize="characters" autoComplete="off" spellCheck={false} placeholder="ABCD-EFGH-JKLM-NPQR-STUV" value={input} onChange={(e) => { setInput(e.target.value); setErr(""); }} /></div>
+        {err && <p className="hint" style={{ color: "#c2410c" }} role="alert">{err}</p>}
+        <p className="hint">Books already on this device are kept and added to your synced library.</p>
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button className="btn" onClick={() => setMode("menu")}>Back</button>
+          <button className="btn primary" disabled={busy || !input.trim()} onClick={async () => { setBusy(true); const r = await joinSync(input); setBusy(false); if (r.ok) { s.toast("Connected. Your library is syncing"); setShown(true); } else setErr(r.msg || "Couldn't connect"); }}>{busy ? "Connecting…" : "Connect"}</button>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  return (
+    <ModalShell title="Sync between your devices" onClose={onClose}>
+      <p style={{ marginTop: 0 }}>Keep your books in step across your Mac, iPhone and iPad. Changes made on one device appear on the others within a minute, and edits made offline sync when you reconnect.</p>
+      <ol className="sync-steps hint">
+        <li>Your library is encrypted on this device before it's sent, using a private sync code only your devices know.</li>
+        <li>The sync server only stores scrambled data. It can't read your books.</li>
+        <li>Everything still works offline, and stays on each device too.</li>
+      </ol>
+      {err && <p className="hint" style={{ color: "#c2410c" }} role="alert">{err}</p>}
+      <div className="row" style={{ marginTop: 12, flexWrap: "wrap" }}>
+        <button className="btn primary" disabled={busy} onClick={async () => { setBusy(true); setErr(""); try { await startNewSync(); setShown(true); } catch (e: any) { setErr(e?.message || "Couldn't start sync"); } setBusy(false); }}>{busy ? "Starting…" : "Start syncing (first device)"}</button>
+        <button className="btn" onClick={() => setMode("join")}>I already have a sync code</button>
       </div>
     </ModalShell>
   );
