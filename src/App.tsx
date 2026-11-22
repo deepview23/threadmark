@@ -10,6 +10,8 @@ import { initSync } from "./sync";
 import { initLicence } from "./license";
 import { handleDeepLink } from "./deeplink";
 
+const MOVED_TO = (import.meta.env.VITE_MOVED_TO as string | undefined) || "";
+
 export default function App() {
   const loaded = useStore((s) => s.loaded);
   const curId = useStore((s) => s.curId);
@@ -34,6 +36,7 @@ export default function App() {
       {curId ? <AtlasShell /> : <Library />}
       <Modals />
       <Toast />
+      {MOVED_TO && <div className="moved-bar" role="alert"><div><b>Threadmark has moved to a new address.</b> This old version won't get updates. Your books are safe: if you use sync, open the new app and enter your sync code. If not, export each book here (Settings) and import it there.</div><a className="btn sm primary" href={MOVED_TO}>Open the new app</a></div>}
       {needRefresh && <div className="update-bar"><span>A new version of Threadmark is ready.</span><button className="btn sm primary" onClick={() => needRefresh()}>Update</button><button className="btn sm ghost" onClick={() => setNeedRefresh(null)}>Later</button></div>}
     </>
   );
