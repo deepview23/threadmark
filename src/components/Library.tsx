@@ -37,7 +37,7 @@ export default function Library() {
     <section className="lib">
       <div className="lib-head">
         <div><h1>Your story atlases</h1><p>Each atlas starts blank. You add the people you meet and what happens, at your own pace, so nothing is ever spoiled.</p></div>
-        <div className="row"><button className="btn primary" onClick={() => { if (canAddBook()) s.openModal({ type: "newAtlas" }); }}>New atlas</button><button className="btn" onClick={() => s.openModal({ type: "import" })}>Import</button></div>
+        <div className="row"><button className="btn primary" onClick={() => { if (canAddBook({ type: "newAtlas" })) s.openModal({ type: "newAtlas" }); }}>New atlas</button><button className="btn" onClick={() => s.openModal({ type: "import" })}>Import</button></div>
       </div>
       <div className="lib-tools">
         <input type="search" placeholder="Search titles, characters, places…" aria-label="Search all atlases" value={libQ} onChange={(e) => s.setUi({ libQ: e.target.value })} />
@@ -91,7 +91,7 @@ function Welcome() {
           <li>Draw how they connect, log what happens, and test your theories.</li>
         </ol>
         <div className="row">
-          <button className="btn primary" onClick={() => { if (canAddBook()) s.openModal({ type: "newAtlas" }); }}>Start a blank atlas</button>
+          <button className="btn primary" onClick={() => { if (canAddBook({ type: "newAtlas" })) s.openModal({ type: "newAtlas" }); }}>Start a blank atlas</button>
           <button className="btn" onClick={() => { s.addExisting(demoAtlas()); s.toast("Demo atlas added. Delete it whenever you like."); }}>Explore a demo first</button>
           <button className="btn ghost" onClick={() => s.openModal({ type: "import" })}>Import</button>
         </div>

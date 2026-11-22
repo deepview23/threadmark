@@ -9,6 +9,7 @@ import * as db from "./storage";
 import { useStore } from "./store";
 import { SYNC_URL } from "./sync";
 import type { Atlas } from "./types";
+import { signedUp } from "./signup";
 
 export const PAYWALL = import.meta.env.VITE_PAYWALL === "on";
 export const BUY_URL: string = import.meta.env.VITE_BUY_URL || "";
@@ -24,10 +25,15 @@ export const personalCount = (list: Atlas[]) => list.filter((a) => !a.demo && !i
 export const licensed = () => !!licence?.valid;
 export const currentLicence = () => licence;
 
-/** May the reader add another book of their own? Opens the unlock window if not. */
-export function canAddBook(): boolean {
+/** May the reader add another book of their own? Opens the sign-up or unlock window if not.
+ *  `next` is the window to open once the reader has signed up (e.g. the new-book form). */
+export function canAddBook(next?: { type: string; props?: any }): boolean {
   if (!PAYWALL || licensed()) return true;
-  if (personalCount(useStore.getState().atlases) < FREE_BOOKS) return true;
+  if (personalCount(useStore.getState().atlases) < FREE_BOOKS) {
+    if (signedUp()) return true;
+    useStore.getState().openModal({ type: "signup", props: { next } });
+    return false;
+  }
   useStore.getState().openModal({ type: "unlock" });
   return false;
 }

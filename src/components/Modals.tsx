@@ -8,6 +8,7 @@ import { InstallTip } from "./Library";
 import type { Atlas } from "../types";
 import { SYNC_URL, currentCode, joinSync, startNewSync, syncNow, turnOffSync } from "../sync";
 import { BUY_URL, FREE_BOOKS, PAYWALL, SITE_URL, activate, canAddBook, currentLicence, licensed } from "../license";
+import { countries, guessCountry, saveSignup } from "../signup";
 
 export default function Modals() {
   const m = useStore((s) => s.modal);
@@ -22,6 +23,7 @@ export default function Modals() {
     case "shortcuts": return <ShortcutsModal onClose={close} />;
     case "sync": return <SyncModal onClose={close} />;
     case "unlock": return <UnlockModal onClose={close} />;
+    case "signup": return <SignupModal onClose={close} next={m.props?.next} />;
     case "unlinkPlaces": return <UnlinkModal onClose={close} {...m.props} />;
     default: return null;
   }
@@ -69,7 +71,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
     const valid = list.filter((x: any) => x && typeof x === "object" && Array.isArray(x.characters));
     if (!valid.length) return s.toast("That doesn't look like a Threadmark atlas.");
     const personal = valid.filter((x: any) => !x.demo && !(typeof x.sourceUrl === "string" && x.sourceUrl.startsWith("/classics/")));
-    if (personal.length && !canAddBook()) return;
+    if (personal.length && !canAddBook({ type: "import" })) return;
     valid.forEach((x: any, i: number) => s.addExisting(x, i === valid.length - 1 && valid.length === 1));
     onClose(); s.toast(valid.length === 1 ? `Imported “${valid[0].title}”` : `Imported ${valid.length} atlases`);
   };
@@ -238,6 +240,44 @@ function SyncModal({ onClose }: { onClose: () => void }) {
         <button className="btn primary" disabled={busy} onClick={async () => { setBusy(true); setErr(""); try { await startNewSync(); setShown(true); } catch (e: any) { setErr(e?.message || "Couldn't start sync"); } setBusy(false); }}>{busy ? "Starting…" : "Start syncing (first device)"}</button>
         <button className="btn" onClick={() => setMode("join")}>I already have a sync code</button>
       </div>
+    </ModalShell>
+  );
+}
+
+function SignupModal({ onClose, next }: { onClose: () => void; next?: { type: string; props?: any } }) {
+  const s = useStore();
+  const [list] = useState(countries);
+  const [email, setEmail] = useState("");
+  const [country, setCountry] = useState(guessCountry);
+  const [news, setNews] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const go = async () => {
+    setBusy(true); setErr("");
+    const r = await saveSignup(email, country, news);
+    setBusy(false);
+    if (!r.ok) { setErr(r.msg || "That didn't work"); return; }
+    s.toast("You're all set. Enjoy your free book!");
+    if (next) s.openModal(next); else onClose();
+  };
+  return (
+    <ModalShell title="Start your free book" onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); go(); }} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <p style={{ margin: 0 }}>Your first book of your own is free. Tell us where to reach you and where you're reading from, and you're in.</p>
+        <div className="f"><label htmlFor="su-email">Email</label><input id="su-email" type="email" autoComplete="email" autoFocus required placeholder="you@example.com" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }} /></div>
+        <div className="f"><label htmlFor="su-country">Country</label>
+          <select id="su-country" required value={country} onChange={(e) => { setCountry(e.target.value); setErr(""); }}>
+            <option value="">Choose your country</option>
+            {list.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select></div>
+        <label className="check" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" checked={news} onChange={(e) => setNews(e.target.checked)} style={{ marginTop: 4 }} /><span>Also email me when a new free classic or a Threadmark update is out. (Optional, unsubscribe any time.)</span></label>
+        <p className="hint" style={{ margin: 0 }}>We keep your email so we can reach you about Threadmark if something important changes, and your country so we know where readers are. Without the tick, we won't send you newsletters. Your books stay on your device; we never see them. <a href={SITE_URL + "/privacy/"} target="_blank" rel="noopener">Privacy notice</a>.</p>
+        {err && <p className="hint" style={{ color: "#c2410c", margin: 0 }} role="alert">{err}</p>}
+        <div className="row" style={{ justifyContent: "flex-end" }}>
+          <button type="button" className="btn" onClick={onClose}>Not now</button>
+          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : "Start my book"}</button>
+        </div>
+      </form>
     </ModalShell>
   );
 }

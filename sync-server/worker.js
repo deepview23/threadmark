@@ -11,7 +11,9 @@
  *   PUT    /v1/vault/:id   body { rev, data } -> { rev } (409 if rev is out of date)
  *   DELETE /v1/vault/:id   -> { ok: true }
  *   GET    /               -> health check
- *   POST   /v1/subscribe        body { email, list, consent, source, website } -> { ok }
+ *   POST   /v1/subscribe        body { email, list, consent, country, source, website } -> { ok }
+ *                                list "app" = sign-up before a reader's first own book: consent is optional there and
+ *                                is stored as `news` (true only if they ticked "email me about new classics and updates").
  *   GET    /v1/unsubscribe?id=  -> confirmation page
  *   POST   /v1/feedback         body { name, email, quote, rating, book, publish, website } -> { ok }
  *   POST   /v1/license/verify   body { key } -> { valid, reason }
@@ -119,13 +121,15 @@ async function subscribe(request, env) {
   if (b.website) return json({ ok: true }); // honeypot: bots fill hidden fields
   const email = clean(b.email, 254).toLowerCase();
   if (!EMAIL_RE.test(email)) return json({ error: "Please enter a valid email address." }, 400);
-  if (b.consent !== true) return json({ error: "Please tick the box to agree to emails." }, 400);
   const list = clean(b.list, 40) || "classics";
+  if (list !== "app" && b.consent !== true) return json({ error: "Please tick the box to agree to emails." }, 400);
+  const country = /^[A-Z]{2}$/.test(String(b.country || "")) ? b.country : "";
   const id = (await sha256("sub:" + email)).slice(0, 32);
   const key = "sub:" + id;
   const prev = await env.VAULTS.get(key, "json");
   const lists = Array.from(new Set([...(prev?.lists || []), list]));
-  const rec = { email, lists, source: clean(b.source, 120), at: prev?.at || Date.now(), updated: Date.now(), id };
+  const news = Boolean(b.consent === true || prev?.news || (prev && prev.news === undefined)); // older sign-ups all ticked the box
+  const rec = { email, lists, news, country: country || prev?.country || "", source: clean(b.source, 120) || prev?.source || "", at: prev?.at || Date.now(), updated: Date.now(), id };
   await env.VAULTS.put(key, JSON.stringify(rec), { metadata: { email, lists: lists.join("|"), at: rec.at } });
   return json({ ok: true, id });
 }
@@ -198,7 +202,7 @@ async function admin(request, url, env) {
     for (const k of page.keys) { const v = await env.VAULTS.get(k.name, "json"); if (v) rows.push(v); }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
-  const cols = type === "feedback" ? ["at", "name", "email", "book", "rating", "publish", "quote"] : ["at", "email", "lists", "source", "id"];
-  const out = [cols.join(",")].concat(rows.map((r) => cols.map((c) => csvCell(c === "at" ? new Date(r.at).toISOString() : Array.isArray(r[c]) ? r[c].join("|") : r[c])).join(","))).join("\n");
+  const cols = type === "feedback" ? ["at", "name", "email", "book", "rating", "publish", "quote"] : ["at", "email", "country", "news", "lists", "source", "id"];
+  const out = [cols.join(",")].concat(rows.map((r) => cols.map((c) => csvCell(c === "at" ? new Date(r.at).toISOString() : c === "news" ? (r.news === false ? "no" : "yes") : Array.isArray(r[c]) ? r[c].join("|") : r[c])).join(","))).join("\n");
   return new Response(out, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="threadmark-${type}.csv"`, "Cache-Control": "no-store", ...CORS } });
 }

@@ -8,6 +8,7 @@ import AtlasShell from "./components/AtlasShell";
 import Modals from "./components/Modals";
 import { initSync } from "./sync";
 import { initLicence } from "./license";
+import { initSignup } from "./signup";
 import { handleDeepLink } from "./deeplink";
 
 const MOVED_TO = (import.meta.env.VITE_MOVED_TO as string | undefined) || "";
@@ -18,7 +19,7 @@ export default function App() {
   const theme = useStore((s) => s.theme);
   const [needRefresh, setNeedRefresh] = useState<null | (() => void)>(null);
 
-  useEffect(() => { useStore.getState().init().then(async () => { await initLicence(); handleDeepLink(); initSync(); }); }, []);
+  useEffect(() => { useStore.getState().init().then(async () => { await initLicence(); await initSignup(); handleDeepLink(); initSync(); }); }, []);
   useEffect(() => {
     const r = document.documentElement;
     if (theme === "system") delete r.dataset.theme; else r.dataset.theme = theme;
